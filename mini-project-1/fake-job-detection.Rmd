@@ -255,31 +255,68 @@ confMatrix_rf <- confusionMatrix(rf_prediction, test_data$fraudulent)
 confMatrix_rf
 ```
 
+## Second Attempt
+
 ```{r}
-library(tidytext)
-library(wordcloud2)
-
-fraud_job <- sparse_data_df %>% filter(fraudulent == 1) %>% group_by_all()
-DF <- tidy(fraud_job)
-DF <- DF %>% select(column, max)
-colnames(DF) <- c("Word", "Frequency")
-DF <- DF %>% arrange(desc(Frequency)) %>% slice(1:500)
-DF$Frequency <- as.integer(DF$Frequency)
-DF <- data.frame(DF)
-
-wordcloud2(DF, size=1.6, color='random-light', backgroundColor="black")
+df <- read.csv("../data/fake_job_postings.csv", stringsAsFactors = FALSE)
+str(df)
 ```
 
 ```{r}
-non_fraud_job <- sparse_data_df %>% filter(fraudulent == 0) %>% group_by_all()
+df <- df %>% select(-job_id, -salary_range)
+df <- df %>%
+  select(fraudulent, title, location, company_profile, description, requirements,
+         benefits, telecommuting, has_company_logo, has_questions) %>%
+  drop_na(description)  # keep key text
+```
 
-DF_1 <- tidy(non_fraud_job)
-DF_1 <- DF_1 %>% select(column, max)
-colnames(DF_1) <- c("Word", "Frequency")
-DF_1 <- DF_1 %>% arrange(desc(Frequency)) %>% slice(1:500)
-DF_1$Frequency <- as.integer(DF_1$Frequency)
-DF_1 <- data.frame(DF_1)
+```{r}
+df$fraudulent <- factor(df$fraudulent, levels = c(0, 1), labels = c("real", "fake"))
+```
 
-wordcloud2(DF_1, size=1.6, color='random-light', backgroundColor="black")
+```{r}
+set.seed(123)
+train_index <- createDataPartition(df$fraudulent, p = 0.8, list = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+```
+
+```{r}
+head(train_data)
+```
+
+
+```{r}
+library(textrecipes)
+
+rec <- recipe(fraudulent ~ ., data = train_data) %>%
+  step_mutate(text = paste(title, company_profile, description, requirements, benefits)) %>%
+  step_rm(title, company_profile, description, requirements, benefits, location) %>%
+  step_tokenize(text) %>%
+  step_stopwords(text) %>%
+  step_tokenfilter(text, max_tokens = 1000) %>%
+  step_tfidf(text)
+```
+
+```{r}
+library(parsnip)
+library(workflows)
+
+model <- logistic_reg(penalty = 0.01, mixture = 1) %>%
+  set_engine("glmnet")
+
+workflow <- workflow() %>%
+  add_model(model) %>%
+  add_recipe(rec)
+
+fit <- fit(workflow, data = train_data)
+```
+
+```{r}
+pred <- predict(fit, test_data, type = "prob")$.pred_fake
+class_pred <- ifelse(pred > 0.5, "fake", "real") %>% factor(levels = c("real", "fake"))
+
+confusionMatrix(class_pred, test_data$fraudulent)
+
 ```
 
