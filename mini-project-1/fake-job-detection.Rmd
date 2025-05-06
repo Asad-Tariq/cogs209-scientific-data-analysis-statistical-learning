@@ -1,5 +1,5 @@
 ---
-title: "Fake Job Detection"
+title: "testing"
 author: "Asad Tariq"
 date: "`r Sys.Date()`"
 output: pdf_document
@@ -8,190 +8,78 @@ output: pdf_document
 ## Loading Libraries
 
 ```{r}
-library(ggplot2)
 library(dplyr)
 library(tidyverse)
-library(ggthemes)
-library(skimr)
-library(DataExplorer)
-library(ggpubr)
 library(caret)
-library(lubridate)
-library(data.table)
-library(tidytext)
 library(tm)
-library(SnowballC)
-library(wordcloud)
-library(stopwords)
-library(e1071)
 ```
 
-## Loading the Dataset
+## Reading the Dataset
 
 ```{r}
-data <- read_csv("../data/fake_job_postings.csv")
-data
+df <- read_csv("../data/fake_job_postings.csv")
+head(df)
 ```
 
+
+## Extracting Required Columns
+
 ```{r}
-skim(data)
+df_sub <- select(
+  df, title, location, department, company_profile, description,
+  requirements, benefits, telecommuting, has_company_logo, has_questions,
+  employment_type, required_experience, required_education, sub_industry,
+  industry, fraudulent
+  )
+
+head(df_sub)
 ```
 
+## Removing the NAs
+
 ```{r}
-# plot_intro(data, title = "Data Quality" )
+df_sub$benefits <- ifelse(is.na(df_sub$benefits), 0, 1)
+df_sub$location[is.na(df_sub$location)] <- "Not-Specified"
+df_sub$department[is.na(df_sub$department)] <- "Not-Specified"
+df_sub$employment_type[is.na(df_sub$employment_type)] <- "Not-Specified"
+df_sub$required_experience[is.na(df_sub$required_experience)] <- "Not-Specified"
+df_sub$required_education[is.na(df_sub$required_education)] <- "Not-Specified"
+df_sub$sub_industry[is.na(df_sub$sub_industry)] <- "Not-Specified"
+df_sub$industry[is.na(df_sub$industry)] <- "Not-Specified"
 ```
 
+## Further modifications
+
 ```{r}
-# plot_missing(data, title = "Missing data")
+df_sub$location <- sub(",.*", "", df$location)
 ```
 
+## Constructing a Job Text column
+
 ```{r}
-data %>% group_by(salary_range) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% slice(2:21) %>% 
-ggplot(aes(x = salary_range, y = Freq)) + geom_bar(stat = "identity", fill = "steelblue", color = "black") +
-  theme_bw() + geom_text(aes(label=round(Freq,0)), vjust=2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1)) + 
-  labs(title = "Salary ranges of the jobs posted",
-       x = "Salary Range",
-       y = "Count")
+df_sub$text <- paste(df_sub$title, df_sub$location, df_sub$company_profile,
+                     df_sub$description, df_sub$requirements, sep = " ")
 ```
 
+## Dropping the unwanted columns
+
 ```{r}
-data <- data %>% select(-salary_range)
-data %>% group_by(title) %>% summarize(Freq = n()) %>% arrange(desc(Freq))
+df_sub <- subset(df_sub,
+                 select = -c(title, location, company_profile, description,
+                             requirements))
 ```
 
-```{r}
-data %>% group_by(title) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>%  slice(1:10) %>%
-ggplot(aes(x=reorder(title, -Freq), y = Freq)) +
-  geom_segment( aes(x=reorder(title, -Freq), xend=reorder(title, -Freq), y=0, yend=Freq), color="skyblue") +
-  geom_point( color="blue", size=2, alpha=1) +
-  theme_light() +
-  coord_flip() +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.border = element_blank(),
-    axis.ticks.y = element_blank()) + 
-    theme_bw() + 
-    labs(title = "Top 10 jobs listed",
-         x = "Job Title",
-         y = "Count") + geom_text(aes(label=round(Freq,0)), vjust=-0.8)
-```
+## Building a corpus from the Text column
 
 ```{r}
-data %>% group_by(location) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>%  slice(1:4,7:12) %>%
-  ggplot(aes(x = reorder(location, -Freq), y = Freq)) + geom_bar(stat = "identity", fill = "steelblue", color = "black") + 
-  theme_bw() + labs(title = "Top 10 job locations listed in the data",
-                    x = "Job Location",
-                    y = "Count") +
-  geom_text(aes(label=round(Freq,0)), vjust=2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1))
-```
-
-```{r}
-data$telecommuting <- if_else(data$telecommuting == 1, "Required", "Not Required")
-data %>% group_by(telecommuting) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% 
-  ggplot(aes(x = reorder(telecommuting, -Freq), y = Freq)) + geom_bar(stat = "identity", fill = "steelblue", color = "black") + 
-  theme_bw() + labs(title = "Jobs that require telecommuting",
-                    x = "Telecommuting",
-                    y = "Count") +
-  geom_text(aes(label=round(Freq,0)), vjust= - 0.5) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1))
-```
-
-```{r}
-data %>% group_by(employment_type) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% slice(1,3:6) %>%
-  ggplot(aes(x = reorder(employment_type, -Freq), y = Freq, fill = employment_type)) + geom_bar(stat = "identity",  color = "black") + 
-  theme_bw() + labs(title = "Employment types",
-                    x = "Type",
-                    y = "Count",
-                    fill = "Employment Type") +
-  geom_text(aes(label=round(Freq,0)), vjust= - 0.5) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1))
-```
-
-```{r}
-data %>% group_by(required_experience) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% slice(2:8) %>%
-  ggplot(aes(x = reorder(required_experience, -Freq), y = Freq, fill = required_experience)) + geom_bar(stat = "identity", color = "black") + 
-  theme_bw() + labs(title = "Experience required",
-                    x = "Required Experience",
-                    y = "Count",
-                    fill = "Required Experience") +
-  geom_text(aes(label=round(Freq,0)), vjust= -0.2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1))
-```
-
-```{r}
-data %>% group_by(required_education) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% slice(2:14) %>%
-  ggplot(aes(x=reorder(required_education, -Freq), y = Freq)) +
-  geom_segment( aes(x=reorder(required_education, -Freq), xend=reorder(required_education, -Freq), y=0, yend=Freq), color="skyblue") +
-  geom_point( color="steelblue", size=2, alpha=1) +
-  theme_light() +
-  coord_flip() +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.border = element_blank(),
-    axis.ticks.y = element_blank()) +
-    theme_bw() + labs(title = "Education required",
-                        x = "Education",
-                        y = "Count",
-                        fill = "Education") + 
-    geom_text(aes(label=round(Freq,0)), vjust=-0.6)
-```
-
-```{r}
-data %>% group_by(industry) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% slice(2:11) %>%
-  ggplot(aes(x = reorder(industry, -Freq), y = Freq)) + geom_bar(stat = "identity", color = "black", fill = "purple") + 
-  theme_bw() + labs(title = "Top 10 industries",
-                    x = "Industry",
-                    y = "Count",
-                    fill = "Education") +
-  geom_text(aes(label=round(Freq,0)), vjust= -0.2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1))
-```
-
-```{r}
-fraud_job_data <- data %>% filter(fraudulent == 1)
-fraud_job_data %>% group_by(department) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% slice(2:11) %>% 
-  ggplot(aes(x = reorder(department, -Freq), y = Freq)) + geom_bar(stat = "identity", color = "black", fill = "purple") + 
-  theme_bw() + labs(title = "Top 10 departments for a fraud job",
-                    x = "Department",
-                    y = "Count") +
-  geom_text(aes(label=round(Freq,0)), vjust= -0.2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1))
-```
-
-```{r}
-#Fraud job required education
-fjob <- fraud_job_data %>% group_by(required_education) %>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% 
-  ggplot(aes(x = reorder(required_education, -Freq), y = Freq)) + geom_bar(stat = "identity", color = "black", fill = "pink") + 
-  theme_bw() + labs(title = "Fraud Job - Required Education",
-                    x = "Education",
-                    
-                    y = "Count") +
-  geom_text(aes(label=round(Freq,0)), vjust= -0.2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1)) 
-
-nfjob <- data %>% filter(fraudulent == 0) %>% group_by(required_education)%>% summarize(Freq = n()) %>% arrange(desc(Freq)) %>% 
-  ggplot(aes(x = reorder(required_education, -Freq), y = Freq)) + geom_bar(stat = "identity", color = "black", fill = "pink") + 
-  theme_bw() + labs(title = "Non Fraud Job - Required Education",
-                    x = "Education",
-                    y = "Count") +
-  geom_text(aes(label=round(Freq,0)), vjust= -0.2) + theme(axis.text.x=element_text(size=10, angle=90,hjust=0.5,vjust=1)) 
-
-ggarrange(fjob,nfjob)
-```
-
-```{r}
-data_corpus <- Corpus(VectorSource(data$description))
-data_corpus
-```
-
-```{r}
+data_corpus <- Corpus(VectorSource(df_sub$text))
 data_corpus <- tm_map(data_corpus, removePunctuation)
-data_corpus
-```
-
-```{r}
+data_corpus <- tm_map(data_corpus, removeWords, stopwords(kind = "en"))
 data_corpus <- tm_map(data_corpus, stripWhitespace)
-data_corpus
+data_corpus <- tm_map(data_corpus, stemDocument)
 ```
 
-```{r}
-data_corpus <- tm_map(data_corpus, stemDocument)
-data_corpus
-```
+### Checking the word frequencies
 
 ```{r}
 frequencies <- DocumentTermMatrix(data_corpus)
@@ -199,124 +87,31 @@ frequencies <- DocumentTermMatrix(data_corpus)
 
 ```{r}
 sparse_data <- removeSparseTerms(frequencies, 0.995)
-sparse_data
-```
-
-```{r}
 sparse_data_df <- as.data.frame(as.matrix(sparse_data))
 colnames(sparse_data_df) <- make.names(colnames(sparse_data_df))
-sparse_data_df$fraudulent <- data$fraudulent
-colnames(sparse_data_df) <- make.unique(colnames(sparse_data_df), sep = "_")
+sparse_data_df$fraudulent <- df_sub$fraudulent
 ```
 
+## Adding features
 
 ```{r}
-set.seed(123)
-split_data <- createDataPartition(y = sparse_data_df$fraudulent, times = 1, p = 0.85, list= FALSE)
-train_data <- sparse_data_df[split_data, ]
-test_data <- sparse_data_df[-split_data, ]
-```
+sparse_data_df <- cbind(df_sub$benefits, df_sub$telecommuting,
+                       df_sub$has_company_logo, df_sub$has_questions,
+                       sparse_data_df)
 
-
-```{r}
-train_data$fraudulent = as.factor(train_data$fraudulent)
-test_data$fraudulent = as.factor(test_data$fraudulent)
-```
-
-
-```{r}
-set.seed(1111)
-trcontrol<- trainControl(method = "repeatedcv", number=2, repeats=1, search="random", verboseIter = TRUE)
-```
-
-
-```{r}
-grid <-data.frame(mtry = c(100))
-```
-
-
-```{r}
-set.seed(1122)
-rf_model <- train(fraudulent ~ ., method = "rf", data = train_data, ntree = 200, trControl = trcontrol,tuneGrid = grid)
+colnames(sparse_data_df)[1:4] <- c("benefits", "telecommuting",
+                                   "has_company_logo", "has_questions")
 ```
 
 ```{r}
-rf_model
+names(sparse_data_df) <- gsub("\\.$", "", names(sparse_data_df))
 ```
 
 ```{r}
-rf_prediction <- predict(rf_model, newdata = test_data)
-```
-
-
-```{r}
-confMatrix_rf <- confusionMatrix(rf_prediction, test_data$fraudulent)
-
-confMatrix_rf
-```
-
-## Second Attempt
-
-```{r}
-df <- read.csv("../data/fake_job_postings.csv", stringsAsFactors = FALSE)
-str(df)
-```
-
-```{r}
-df <- df %>% select(-job_id, -salary_range)
-df <- df %>%
-  select(fraudulent, title, location, company_profile, description, requirements,
-         benefits, telecommuting, has_company_logo, has_questions) %>%
-  drop_na(description)  # keep key text
-```
-
-```{r}
-df$fraudulent <- factor(df$fraudulent, levels = c(0, 1), labels = c("real", "fake"))
-```
-
-```{r}
-set.seed(123)
-train_index <- createDataPartition(df$fraudulent, p = 0.8, list = FALSE)
-train_data <- df[train_index, ]
-test_data <- df[-train_index, ]
-```
-
-```{r}
-head(train_data)
-```
-
-
-```{r}
-library(textrecipes)
-
-rec <- recipe(fraudulent ~ ., data = train_data) %>%
-  step_mutate(text = paste(title, company_profile, description, requirements, benefits)) %>%
-  step_rm(title, company_profile, description, requirements, benefits, location) %>%
-  step_tokenize(text) %>%
-  step_stopwords(text) %>%
-  step_tokenfilter(text, max_tokens = 1000) %>%
-  step_tfidf(text)
-```
-
-```{r}
-library(parsnip)
-library(workflows)
-
-model <- logistic_reg(penalty = 0.01, mixture = 1) %>%
-  set_engine("glmnet")
-
-workflow <- workflow() %>%
-  add_model(model) %>%
-  add_recipe(rec)
-
-fit <- fit(workflow, data = train_data)
-```
-
-```{r}
-pred <- predict(fit, test_data, type = "prob")$.pred_fake
-class_pred <- ifelse(pred > 0.5, "fake", "real") %>% factor(levels = c("real", "fake"))
-
-confusionMatrix(class_pred, test_data$fraudulent)
-
+basic_logit <- glm("fraudulent ~ has_company_logo + has_questions + 
+                   benefits + multitask + customer*services",
+                   data = sparse_data_df,
+                   family = "binomial")
+summary(basic_logit)
 ```
 
