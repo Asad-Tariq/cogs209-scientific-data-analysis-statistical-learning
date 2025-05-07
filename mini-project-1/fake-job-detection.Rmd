@@ -74,7 +74,7 @@ df_sub <- subset(df_sub,
 ```{r}
 data_corpus <- Corpus(VectorSource(df_sub$text))
 data_corpus <- tm_map(data_corpus, removePunctuation)
-data_corpus <- tm_map(data_corpus, removeWords, stopwords(kind = "en"))
+data_corpus <- tm_map(data_corpus, removeWords, tm::stopwords(kind = "en"))
 data_corpus <- tm_map(data_corpus, stripWhitespace)
 data_corpus <- tm_map(data_corpus, stemDocument)
 ```
@@ -114,4 +114,100 @@ basic_logit <- glm("fraudulent ~ has_company_logo + has_questions +
                    family = "binomial")
 summary(basic_logit)
 ```
+
+```{r}
+library(randomForest)
+library(caret)
+```
+
+
+```{r}
+
+set.seed(123)
+train_index <- createDataPartition(sparse_data_df$fraudulent, p = 0.7, list = FALSE)
+train_data <- sparse_data_df[train_index, ]
+test_data <- sparse_data_df[-train_index, ]
+
+train_data$fraudulent <- as.factor(train_data$fraudulent)
+test_data$fraudulent <- as.factor(test_data$fraudulent)
+
+str(train_data[, c("has_company_logo", "has_questions", "benefits", "multitask", "customer", "services")])
+
+```
+
+
+```{r}
+# Assuming your target variable is called 'fraudulent' and it's a factor
+rf_model <- randomForest(fraudulent ~ has_company_logo + has_questions + benefits, data = train_data, ntree = 100, importance = TRUE)
+```
+
+```{r}
+#make predictions
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Confusion Matrix using caret
+conf_matrix <- confusionMatrix(data = rf_predictions,
+                               reference = test_data$fraudulent,
+                               positive = "1",
+                               mode = "everything")
+
+print(conf_matrix)
+
+# Accuracy
+accuracy <- conf_matrix$overall["Accuracy"]
+cat("Accuracy:", round(accuracy, 4))
+
+
+```
+
+```{r}
+library(dplyr)
+train_data <- train_data[, !duplicated(names(train_data))]
+
+# 1. Split the training data by class
+fraudulent_jobs <- train_data %>% filter(fraudulent == "1")
+nonfraudulent_jobs <- train_data %>% filter(fraudulent == "0")
+
+# 2. Oversample the minority class to match the majority
+oversampled_fraud <- fraudulent_jobs %>%
+  slice_sample(n = nrow(nonfraudulent_jobs), replace = TRUE)
+
+# 3. Combine into balanced training set
+train_data_balanced <- bind_rows(nonfraudulent_jobs, oversampled_fraud)
+
+# 4. Shuffle the rows
+train_data_balanced <- train_data_balanced %>%
+  slice_sample(n = nrow(train_data_balanced))
+
+# Optional: confirm balance
+table(train_data_balanced$fraudulent)
+
+```
+
+```{r}
+rf_model <- randomForest(
+  fraudulent ~ has_company_logo + has_questions + benefits + multitask + customer * services,
+  data = train_data_balanced,
+  ntree = 100,
+  importance = TRUE
+)
+
+# Predict on the original test set
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Evaluate performance
+conf_matrix <- confusionMatrix(
+  data = rf_predictions,
+  reference = test_data$fraudulent,
+  positive = "1",
+  mode = "everything"
+)
+
+print(conf_matrix)
+cat("Accuracy:", round(conf_matrix$overall["Accuracy"], 4))
+```
+
+
+
+
 
