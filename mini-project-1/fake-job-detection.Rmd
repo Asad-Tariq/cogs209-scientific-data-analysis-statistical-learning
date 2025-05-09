@@ -12,6 +12,9 @@ library(dplyr)
 library(tidyverse)
 library(caret)
 library(tm)
+library(randomForest)
+library(pROC)
+library(glmnet)
 ```
 
 ## Reading the Dataset
@@ -105,24 +108,177 @@ colnames(sparse_data_df)[1:4] <- c("benefits", "telecommuting",
 
 ```{r}
 names(sparse_data_df) <- gsub("\\.$", "", names(sparse_data_df))
+sparse_data_df <- sparse_data_df[, !duplicated(names(sparse_data_df))]
 ```
 
+## Fitting a basic Logistic Regression Model
+
 ```{r}
-basic_logit <- glm("fraudulent ~ has_company_logo + has_questions + 
-                   benefits + multitask + customer*services",
+binomial_logit.mod <- glm(fraudulent ~ has_company_logo + has_questions + 
+                   benefits + telecommuting + multitask + customer*services,
                    data = sparse_data_df,
                    family = "binomial")
-summary(basic_logit)
+summary(binomial_logit.mod)
 ```
 
 ```{r}
-library(randomForest)
-library(caret)
+# Get predicted probabilities
+pred_probs <- predict(binomial_logit.mod, type = "response")
+
+# Classify: use 0.5 as default threshold
+pred_class <- ifelse(pred_probs > 0.5, 1, 0)
+
+# # Make sure your actuals are also binary (0/1)
+actual <- sparse_data_df$fraudulent
+```
+
+### Confusion Matrix
+
+```{r}
+# Convert to factor for confusionMatrix
+actual <- factor(actual, levels = c("0", "1"))
+pred_class <- factor(pred_class, levels = c("0", "1"))
+
+confusionMatrix(pred_class, actual, positive = "1")
+```
+
+### F1 Score
+
+```{r}
+precision <- posPredValue(pred_class, actual, positive = "1")
+recall <- sensitivity(pred_class, actual, positive = "1")
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+### ROC Curve and AUC
+
+```{r}
+roc_obj <- roc(actual, pred_probs)
+plot(roc_obj, col = "blue", main = "ROC Curve")
+auc(roc_obj)  # AUC score
+```
+
+
+## Weighted Logistic Regression
+
+```{r}
+# Assign weights manually (e.g., inversely proportional to class frequency)
+weights <- ifelse(sparse_data_df$fraudulent == 1, 10, 1)
+
+weighted_model <- glm(fraudulent ~ has_company_logo + has_questions + 
+                        benefits + telecommuting + multitask +
+                        customer*services,
+                      data = sparse_data_df,
+                      family = "binomial",
+                      weights = weights)
+summary(weighted_model)
+```
+
+```{r}
+# Get predicted probabilities
+pred_probs <- predict(weighted_model, type = "response")
+
+# Classify: use 0.5 as default threshold
+pred_class <- ifelse(pred_probs > 0.5, 1, 0)
+
+# # Make sure your actuals are also binary (0/1)
+actual <- sparse_data_df$fraudulent
+```
+
+### Confusion Matrix
+
+```{r}
+# Convert to factor for confusionMatrix
+actual <- factor(actual, levels = c("0", "1"))
+pred_class <- factor(pred_class, levels = c("0", "1"))
+
+confusionMatrix(pred_class, actual, positive = "1")
+```
+
+
+### F1 Score
+
+```{r}
+precision <- posPredValue(pred_class, actual, positive = "1")
+recall <- sensitivity(pred_class, actual, positive = "1")
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+### ROC Curve and AUC
+
+```{r}
+roc_obj <- roc(actual, pred_probs)
+plot(roc_obj, col = "red", main = "ROC Curve")
+auc(roc_obj)  # AUC score
+```
+
+
+## Bayesian Logistic Regression
+
+```{r}
+x <- model.matrix(fraudulent ~ has_company_logo + has_questions + 
+                    benefits + telecommuting + multitask +
+                    customer*services, data = sparse_data_df)[, -1]
+y <- sparse_data_df$fraudulent
+
+# Set class weights to address imbalance
+weights <- ifelse(y == 1, 10, 1)
+
+set.seed(42)
+cv_model <- cv.glmnet(x, y,
+                      family = "binomial",
+                      alpha = 1,            # Lasso
+                      weights = weights,
+                      type.measure = "auc", # or "class" or "deviance"
+                      nfolds = 5)
+```
+
+```{r}
+# Plot cross-validation results
+plot(cv_model)
+
+# Best lambda (penalty strength)
+best_lambda <- cv_model$lambda.min
 ```
 
 
 ```{r}
+# Predicted probabilities
+pred_probs <- predict(cv_model, newx = x, s = "lambda.min", type = "response")
 
+# Classify using threshold
+pred_class <- ifelse(pred_probs > 0.5, 1, 0)
+```
+
+### Confusion Matrix
+
+```{r}
+# Confusion matrix
+confusionMatrix(as.factor(pred_class), as.factor(y), positive = "1")
+```
+
+### F1 Score
+
+```{r}
+
+```
+
+
+### ROC Curve and AUC
+
+```{r}
+# ROC & AUC
+roc_obj <- roc(y, as.numeric(pred_probs))
+plot(roc_obj)
+auc(roc_obj)
+```
+
+
+## Creating a train/test split of the dataset
+
+```{r}
 set.seed(123)
 train_index <- createDataPartition(sparse_data_df$fraudulent, p = 0.7, list = FALSE)
 train_data <- sparse_data_df[train_index, ]
@@ -130,19 +286,22 @@ test_data <- sparse_data_df[-train_index, ]
 
 train_data$fraudulent <- as.factor(train_data$fraudulent)
 test_data$fraudulent <- as.factor(test_data$fraudulent)
-
-str(train_data[, c("has_company_logo", "has_questions", "benefits", "multitask", "customer", "services")])
-
 ```
 
+## Fitting a Random Forest Model without Resampling
+### Random Forest with 100 trees
 
 ```{r}
 # Assuming your target variable is called 'fraudulent' and it's a factor
-rf_model <- randomForest(fraudulent ~ has_company_logo + has_questions + benefits, data = train_data, ntree = 100, importance = TRUE)
+rf_model <- randomForest(fraudulent ~ has_company_logo + has_questions + 
+                           benefits + multitask + customer*services,
+                         data = train_data, ntree = 100, importance = TRUE)
 ```
 
+### Confusion Matrix
+
 ```{r}
-#make predictions
+# Make predictions
 rf_predictions <- predict(rf_model, newdata = test_data)
 
 # Confusion Matrix using caret
@@ -151,18 +310,13 @@ conf_matrix <- confusionMatrix(data = rf_predictions,
                                positive = "1",
                                mode = "everything")
 
-print(conf_matrix)
-
-# Accuracy
-accuracy <- conf_matrix$overall["Accuracy"]
-cat("Accuracy:", round(accuracy, 4))
-
-
+conf_matrix
 ```
 
+## Oversampling the fraudulent jobs
+
 ```{r}
-library(dplyr)
-train_data <- train_data[, !duplicated(names(train_data))]
+# train_data <- train_data[, !duplicated(names(train_data))]
 
 # 1. Split the training data by class
 fraudulent_jobs <- train_data %>% filter(fraudulent == "1")
@@ -184,9 +338,13 @@ table(train_data_balanced$fraudulent)
 
 ```
 
+## Fitting a Random Forest Model with Resampling
+### Random Forest with 100 trees
+
 ```{r}
 rf_model <- randomForest(
-  fraudulent ~ has_company_logo + has_questions + benefits + multitask + customer * services,
+  fraudulent ~ has_company_logo + has_questions + benefits + 
+    multitask + customer * services,
   data = train_data_balanced,
   ntree = 100,
   importance = TRUE
@@ -204,10 +362,5 @@ conf_matrix <- confusionMatrix(
 )
 
 print(conf_matrix)
-cat("Accuracy:", round(conf_matrix$overall["Accuracy"], 4))
 ```
-
-
-
-
 
