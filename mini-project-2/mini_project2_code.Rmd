@@ -11,6 +11,7 @@ library(dplyr)
 library(tidyverse)
 library(glmnet)
 library(randomForest)
+library(ggplot2)
 ```
 
 ## Reading the Dataset
@@ -105,6 +106,31 @@ head(importance_df, 10)  # Top 10 for review
 
 ```
 ```{r}
+# Prepare importance data from your Random Forest model
+importance_df <- importance(rf_model, type = 1)
+importance_df <- data.frame(
+  Variable = rownames(importance_df),
+  IncMSE = importance_df[, 1]
+)
+
+# Get top 10 features
+importance_top10 <- importance_df[order(-importance_df$IncMSE), ][1:10, ]
+
+# Make Variable a factor for correct plot order
+importance_top10$Variable <- factor(importance_top10$Variable, levels = rev(importance_top10$Variable))
+
+# Plot
+ggplot(importance_top10, aes(x = Variable, y = IncMSE)) +
+  geom_bar(stat = "identity", fill = "seagreen3") +
+  coord_flip() +
+  labs(title = "Top 10 Feature Importances",
+       x = NULL,
+       y = "Importance (IncMSE)") +
+  theme_minimal(base_size = 14)
+
+```
+
+```{r}
 # Final set of top predictors from both Lasso and Random Forest
 top_predictors <- c("age", "year", "stud_h", "health", "psyt",
                     "qcae_cog", "qcae_aff", "erec_mean", "cesd", "stai_t")
@@ -119,5 +145,6 @@ final_model <- lm(total_burnout ~ ., data = final_data)
 summary(final_model)
 
 ```
+
 
 
