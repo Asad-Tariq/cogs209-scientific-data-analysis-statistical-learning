@@ -4,26 +4,120 @@ output: pdf_document
 date: "2025-05-23"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+## Loading Libraries
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(glmnet)
+library(randomForest)
 ```
 
-## R Markdown
+## Reading the Dataset
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r}
+df <- read_csv("/Users/bellamullen/Documents/gradschool/SPRING25/CSS206/mini_project2/cogs209-scientific-data-analysis-statistical-learning/data/mini_project2_data/Data_Carrardetal2022MedTeach.csv", show_col_types = FALSE)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+head(df)
+```
+## Check for missing data
+```{r}
+# Count of missing values per column
+colSums(is.na(df))
 
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+## create combined burnout score
+```{r}
+# Reverse-code professional efficacy
+max_ea <- max(df$mbi_ea, na.rm = TRUE)
+df$mbi_ea_rev <- max_ea - df$mbi_ea
 
-You can also embed plots, for example:
+# Create a combined burnout score
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+# Z-score standardization
+df$mbi_ex_z <- scale(df$mbi_ex)
+df$mbi_cy_z <- scale(df$mbi_cy)
+df$mbi_ea_rev_z <- scale(df$mbi_ea_rev)
+
+df$total_burnout <- df$mbi_ex_z + df$mbi_cy_z + df$mbi_ea_rev_z
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+# Remove the outcome and ID columns, and convert predictors to a matrix
+predictors <- model.matrix(total_burnout ~ . - id - total_burnout - mbi_ex - mbi_cy - mbi_ea - mbi_ea_rev - mbi_ex_z - mbi_cy_z - mbi_ea_rev_z, data = df)[, -1]
+outcome <- df$total_burnout
+
+# Run Lasso
+lasso_model <- cv.glmnet(
+  x = predictors,
+  y = outcome,
+  alpha = 1,            # Lasso
+  standardize = TRUE,   # Standardizes predictors automatically
+  nfolds = 10            # Cross-validation
+)
+
+# Plot the cross-validation results
+plot(lasso_model)
+
+# Get the best lambda
+best_lambda <- lasso_model$lambda.min
+
+# Extract coefficients at best lambda
+lasso_coefs <- coef(lasso_model, s = best_lambda)
+print(lasso_coefs)
+
+```
+```{r}
+
+# Remove ID and burnout score to isolate predictors
+predictors_rf <- df[, !(names(df) %in% c("id", "total_burnout", "mbi_ex", "mbi_cy", "mbi_ea", "mbi_ea_rev", "mbi_ex_z", "mbi_cy_z", "mbi_ea_rev_z"))]
+
+rf_data <- data.frame(total_burnout = df$total_burnout, predictors_rf)
+rf_data <- na.omit(rf_data)  # Remove rows with NAs
+
+
+# Fit Random Forest regression model
+set.seed(123)
+rf_model <- randomForest(
+  total_burnout ~ ., 
+  data = rf_data,
+  importance = TRUE,
+  ntree = 500
+)
+
+# Print model summary
+print(rf_model)
+
+# Plot variable importance
+varImpPlot(rf_model, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
+
+```
+```{r}
+# Extract and rank variable importance
+importance_df <- importance(rf_model, type = 1)  # %IncMSE
+importance_df <- data.frame(Variable = rownames(importance_df), IncMSE = importance_df[, 1])
+importance_df <- importance_df[order(-importance_df$IncMSE), ]
+
+# Show top predictors
+head(importance_df, 10)  # Top 10 for review
+
+```
+```{r}
+# Final set of top predictors from both Lasso and Random Forest
+top_predictors <- c("age", "year", "stud_h", "health", "psyt",
+                    "qcae_cog", "qcae_aff", "erec_mean", "cesd", "stai_t")
+
+# Subset the data to include only those + the outcome
+final_data <- na.omit(df[, c("total_burnout", top_predictors)])
+
+# Fit the linear regression model
+final_model <- lm(total_burnout ~ ., data = final_data)
+
+# View model summary
+summary(final_model)
+
+```
+
+
