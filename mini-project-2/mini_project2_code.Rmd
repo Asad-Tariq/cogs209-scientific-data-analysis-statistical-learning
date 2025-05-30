@@ -12,12 +12,13 @@ library(tidyverse)
 library(glmnet)
 library(randomForest)
 library(ggplot2)
+library(gridExtra)
 ```
 
 ## Reading the Dataset
 
 ```{r}
-df <- read_csv("/Users/bellamullen/Documents/gradschool/SPRING25/CSS206/mini_project2/cogs209-scientific-data-analysis-statistical-learning/data/mini_project2_data/Data_Carrardetal2022MedTeach.csv", show_col_types = FALSE)
+df <- read_csv("../data/mini_project2_data/Data_Carrardetal2022MedTeach.csv", show_col_types = FALSE)
 
 head(df)
 ```
@@ -95,6 +96,7 @@ print(rf_model)
 varImpPlot(rf_model, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
 
 ```
+
 ```{r}
 # Extract and rank variable importance
 importance_df <- importance(rf_model, type = 1)  # %IncMSE
@@ -105,6 +107,8 @@ importance_df <- importance_df[order(-importance_df$IncMSE), ]
 head(importance_df, 10)  # Top 10 for review
 
 ```
+
+
 ```{r}
 # Prepare importance data from your Random Forest model
 importance_df <- importance(rf_model, type = 1)
@@ -146,5 +150,65 @@ summary(final_model)
 
 ```
 
+```{r}
+#turn sex into a factor to do divide the colors 
+x <- as.factor(df$sex)
 
+eff.anx <- ggplot(df, aes(x = stai_t, y = mbi_ea, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Efficacy")
+
+
+eff.dep <- ggplot(df, aes(x = cesd, y = mbi_ea, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Efficacy")
+
+
+grid.arrange(eff.anx, eff.dep, ncol=2)
+
+```
+
+```{r}
+cyn.qnx <- ggplot(df, aes(x = stai_t, y = mbi_cy, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Cynicism")
+
+cyn.dep <- ggplot(df, aes(x = cesd, y = mbi_cy, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Cynicism")
+
+
+grid.arrange(cyn.qnx, cyn.dep, ncol=2)
+```
+
+```{r}
+exh.qnx <- ggplot(df, aes(x = stai_t, y = mbi_ex, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Exhaustion")
+
+exh.dep <- ggplot(df, aes(x = cesd, y = mbi_ex, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Exhaustion")
+
+
+grid.arrange(exh.qnx, exh.dep, ncol=2)
+```
 
