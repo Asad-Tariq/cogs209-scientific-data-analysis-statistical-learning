@@ -553,3 +553,205 @@ ggplot(mspe_summary_df, aes(x = Label, y = MSPE, color = Model)) +
     legend.position = "none"
   )
 ```
+
+
+## Additional Data Exploration
+
+## Data Exploration
+
+```{r, fig.width=8, fig.height=6}
+# Convert sex into a factor to do divide the colors 
+x <- as.factor(df$sex)
+
+eff.anx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Efficacy")
+
+
+eff.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Efficacy")
+
+
+grid.arrange(eff.anx, eff.dep, ncol=2)
+```
+
+```{r, fig.width=8, fig.height=6}
+cyn.qnx <- ggplot(df, aes(x = anxiety, y = burnout_cynicism_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Cynicism")
+
+cyn.dep <- ggplot(df, aes(x = depression, y = burnout_cynicism_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Cynicism")
+
+
+grid.arrange(cyn.qnx, cyn.dep, ncol=2)
+```
+
+```{r, fig.width=8, fig.height=6}
+exh.qnx <- ggplot(df, aes(x = anxiety, y = burnout_exhaustion_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Exhaustion")
+
+exh.dep <- ggplot(df, aes(x = depression, y = burnout_exhaustion_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Exhaustion")
+
+
+grid.arrange(exh.qnx, exh.dep, ncol=2)
+```
+
+```{r, fig.width=8, fig.height=6}
+total_burnout.qnx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Total Burnout")
+
+total_burnout.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Total Burnout")
+
+
+grid.arrange(total_burnout.qnx, total_burnout.dep, ncol=2)
+```
+
+### Impact of year on burnout
+
+```{r, fig.width=6, fig.height=5}
+summary_df_efficacy <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_efficacy_rev_z),
+    se      = sd(burnout_efficacy_rev_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_efficacy, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Efficacy",
+    title = "Mean Burnout Efficacy by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+```{r, fig.width=6, fig.height=5}
+summary_df_cynicism <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_cynicism_z),
+    se      = sd(burnout_cynicism_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_cynicism, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Cynicism",
+    title = "Mean Burnout Cynicism by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+```{r, fig.width=6, fig.height=5}
+summary_df_exhaustion <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_exhaustion_z),
+    se      = sd(burnout_exhaustion_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_exhaustion, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Exhaustion",
+    title = "Mean Burnout Exhaustion by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+```{r, fig.width=6, fig.height=5}
+summary_df_total_burnout <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z),
+    se      = sd(burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_total_burnout, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Total Burnout",
+    title = "Mean Total Burnout by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+## Partnership Influence over Mental Health
+
+```{r, fig.width=6}
+df$part<-as.factor(df$part)
+
+ggplot(df, aes(x = health, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='Health by Partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+
+```{r}
+ggplot(df, aes(x = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='Total Burnout by Partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+
+```{r}
+ggplot(df, aes(x = anxiety, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='Anxiety by Partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
