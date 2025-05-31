@@ -616,7 +616,6 @@ exh.dep <- ggplot(df, aes(x = depression, y = burnout_exhaustion_z, color = x)) 
   xlab("Depression") +
   ylab("Exhaustion")
 
-
 grid.arrange(exh.qnx, exh.dep, ncol=2)
 ```
 
