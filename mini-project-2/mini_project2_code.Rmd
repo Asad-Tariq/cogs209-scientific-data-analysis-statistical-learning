@@ -212,3 +212,118 @@ exh.dep <- ggplot(df, aes(x = cesd, y = mbi_ex, color = x)) + geom_point() +
 grid.arrange(exh.qnx, exh.dep, ncol=2)
 ```
 
+Checking how the years of medical school affect the levels of burnout. 
+```{r}
+
+summary_df_efficacy <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(mbi_ea),
+    se      = sd(mbi_ea) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_efficacy, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Efficacy",
+    title = "Mean Efficacy by Year with 95% CI"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+summary_df_cynicism <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(mbi_cy),
+    se      = sd(mbi_cy) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_cynicism, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Cynicism",
+    title = "Mean Cynicism by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+```{r}
+summary_df_exhaustion <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(mbi_ex),
+    se      = sd(mbi_ex) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_exhaustion, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Exhaustion",
+    title = "Mean Exhaustion by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+```{r}
+summary_df_burnout <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(total_burnout),
+    se      = sd(total_burnout) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_burnout, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Total Burnout",
+    title = "Mean Burnout by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+```{r}
+df$part<-as.factor(df$part)
+df$total_burnout<-as.numeric(df$total_burnout)
+
+ggplot(df, aes(x= health, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='health by partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+ggplot(df, aes(x= total_burnout, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='burnout by partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+ggplot(df, aes(x= stai_t, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='anxiety by partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+
+```
+
