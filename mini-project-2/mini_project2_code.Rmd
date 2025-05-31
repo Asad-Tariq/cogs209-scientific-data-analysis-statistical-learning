@@ -12,12 +12,13 @@ library(tidyverse)
 library(glmnet)
 library(randomForest)
 library(ggplot2)
+library(gridExtra)
 ```
 
 ## Reading the Dataset
 
 ```{r}
-df <- read_csv("/Users/bellamullen/Documents/gradschool/SPRING25/CSS206/mini_project2/cogs209-scientific-data-analysis-statistical-learning/data/mini_project2_data/Data_Carrardetal2022MedTeach.csv", show_col_types = FALSE)
+df <- read_csv("../data/mini_project2_data/Data_Carrardetal2022MedTeach.csv", show_col_types = FALSE)
 
 head(df)
 ```
@@ -95,6 +96,7 @@ print(rf_model)
 varImpPlot(rf_model, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
 
 ```
+
 ```{r}
 # Extract and rank variable importance
 importance_df <- importance(rf_model, type = 1)  # %IncMSE
@@ -105,6 +107,8 @@ importance_df <- importance_df[order(-importance_df$IncMSE), ]
 head(importance_df, 10)  # Top 10 for review
 
 ```
+
+
 ```{r}
 # Prepare importance data from your Random Forest model
 importance_df <- importance(rf_model, type = 1)
@@ -146,5 +150,180 @@ summary(final_model)
 
 ```
 
+```{r}
+#turn sex into a factor to do divide the colors 
+x <- as.factor(df$sex)
 
+eff.anx <- ggplot(df, aes(x = stai_t, y = mbi_ea, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Efficacy")
+
+
+eff.dep <- ggplot(df, aes(x = cesd, y = mbi_ea, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Efficacy")
+
+
+grid.arrange(eff.anx, eff.dep, ncol=2)
+
+```
+
+```{r}
+cyn.qnx <- ggplot(df, aes(x = stai_t, y = mbi_cy, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Cynicism")
+
+cyn.dep <- ggplot(df, aes(x = cesd, y = mbi_cy, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Cynicism")
+
+
+grid.arrange(cyn.qnx, cyn.dep, ncol=2)
+```
+
+```{r}
+exh.qnx <- ggplot(df, aes(x = stai_t, y = mbi_ex, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Exhaustion")
+
+exh.dep <- ggplot(df, aes(x = cesd, y = mbi_ex, color = x)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Exhaustion")
+
+
+grid.arrange(exh.qnx, exh.dep, ncol=2)
+```
+
+Checking how the years of medical school affect the levels of burnout. 
+```{r}
+
+summary_df_efficacy <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(mbi_ea),
+    se      = sd(mbi_ea) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_efficacy, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Efficacy",
+    title = "Mean Efficacy by Year with 95% CI"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+summary_df_cynicism <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(mbi_cy),
+    se      = sd(mbi_cy) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_cynicism, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Cynicism",
+    title = "Mean Cynicism by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+```{r}
+summary_df_exhaustion <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(mbi_ex),
+    se      = sd(mbi_ex) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_exhaustion, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Exhaustion",
+    title = "Mean Exhaustion by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+```{r}
+summary_df_burnout <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(total_burnout),
+    se      = sd(total_burnout) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_burnout, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Total Burnout",
+    title = "Mean Burnout by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+```{r}
+df$part<-as.factor(df$part)
+df$total_burnout<-as.numeric(df$total_burnout)
+
+ggplot(df, aes(x= health, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='health by partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+ggplot(df, aes(x= total_burnout, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='burnout by partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+ggplot(df, aes(x= stai_t, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='anxiety by partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+
+```
 
