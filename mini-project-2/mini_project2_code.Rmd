@@ -18,6 +18,7 @@ library(RColorBrewer)
 library(gridExtra)
 library(huxtable)
 library(caret)
+library(VIM)
 ```
 
 
@@ -34,6 +35,12 @@ str(df)
 ```{r}
 # Count of missing values per column
 colSums(is.na(df))
+
+# Visualization of missing data 
+dt_miss <- df
+
+a <- aggr(dt_miss, plot = FALSE)
+plot(a, numbers = TRUE, prop = FALSE, cex.axis = 0.6, cex.lab = 0.6)
 ```
 
 ## Renaming the columns for readability
