@@ -1,8 +1,11 @@
 ---
 title: "mini_project2_code"
 author: "Luna Bellitto, Isabella Mullen, Nina Rice, Asad Tariq"
-output: pdf_document
 date: "2025-05-23"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ## Loading Libraries
@@ -107,7 +110,9 @@ df
 ```{r, fig.width=8, fig.height=6}
 # # Convert sex into a factor to do divide the colors
 
-eff.anx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z, color = as.factor(df$sex))) + geom_point() + 
+df$sex <- as.factor(df$sex)
+
+eff.anx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
@@ -115,7 +120,7 @@ eff.anx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z, color = as.fa
   ylab("Efficacy")
 
 
-eff.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z, color = as.factor(df$sex))) + geom_point() + 
+eff.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
@@ -123,18 +128,18 @@ eff.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z, color = as
   ylab("Efficacy")
 
 
-grid.arrange(eff.anx, eff.dep, ncol=2)
+grid.arrange(eff.anx, eff.dep, ncol=2, top = "Impact of Anxiety and Depression on Efficacy by Sex")
 ```
 
 ```{r, fig.width=8, fig.height=6}
-cyn.qnx <- ggplot(df, aes(x = anxiety, y = burnout_cynicism_z, color = as.factor(df$sex))) + geom_point() + 
+cyn.qnx <- ggplot(df, aes(x = anxiety, y = burnout_cynicism_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
   xlab("Anxiety") +
   ylab("Cynicism")
 
-cyn.dep <- ggplot(df, aes(x = depression, y = burnout_cynicism_z, color = as.factor(df$sex))) + geom_point() + 
+cyn.dep <- ggplot(df, aes(x = depression, y = burnout_cynicism_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
@@ -142,36 +147,36 @@ cyn.dep <- ggplot(df, aes(x = depression, y = burnout_cynicism_z, color = as.fac
   ylab("Cynicism")
 
 
-grid.arrange(cyn.qnx, cyn.dep, ncol=2)
+grid.arrange(cyn.qnx, cyn.dep, ncol=2, top = "Impact of Anxiety and Depression on Cynicism by Sex")
 ```
 
 ```{r, fig.width=8, fig.height=6}
-exh.qnx <- ggplot(df, aes(x = anxiety, y = burnout_exhaustion_z, color = as.factor(df$sex))) + geom_point() + 
+exh.qnx <- ggplot(df, aes(x = anxiety, y = burnout_exhaustion_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
   xlab("Anxiety") +
   ylab("Exhaustion")
 
-exh.dep <- ggplot(df, aes(x = depression, y = burnout_exhaustion_z, color = as.factor(df$sex))) + geom_point() + 
+exh.dep <- ggplot(df, aes(x = depression, y = burnout_exhaustion_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
   xlab("Depression") +
   ylab("Exhaustion")
 
-grid.arrange(exh.qnx, exh.dep, ncol=2)
+grid.arrange(exh.qnx, exh.dep, ncol=2, top = "Impact of Anxiety and Depression on Exhaustion by Sex")
 ```
 
 ```{r, fig.width=8, fig.height=6}
-total_burnout.qnx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = as.factor(df$sex))) + geom_point() + 
+total_burnout.qnx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
   xlab("Anxiety") +
   ylab("Total Burnout")
 
-total_burnout.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = as.factor(df$sex))) + geom_point() + 
+total_burnout.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = sex)) + geom_point() + 
   scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
   geom_smooth(method = lm, 
               se = FALSE) + 
@@ -179,7 +184,7 @@ total_burnout.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z +
   ylab("Total Burnout")
 
 
-grid.arrange(total_burnout.qnx, total_burnout.dep, ncol=2)
+grid.arrange(total_burnout.qnx, total_burnout.dep, ncol=2, top = "Impact of Anxiety and Depression on Total Burnout by Sex")
 ```
 
 ### Impact of year on burnout
@@ -275,9 +280,9 @@ ggplot(summary_df_total_burnout, aes(x = year, y = mean)) +
 ## Partnership Influence over Mental Health
 
 ```{r, fig.width=6}
-# df$part<-as.factor(df$part)
+df$part<-as.factor(df$part)
 
-ggplot(df, aes(x = health, fill = as.factor(part))) +
+ggplot(df, aes(x = health, fill = part)) +
   geom_density(alpha=0.7)+
   labs(title='Health by Partership')+
   scale_fill_discrete(labels=c('alone', 'partner'))
@@ -285,7 +290,7 @@ ggplot(df, aes(x = health, fill = as.factor(part))) +
 
 
 ```{r}
-ggplot(df, aes(x = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, fill = as.factor(part))) +
+ggplot(df, aes(x = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, fill = part)) +
   geom_density(alpha=0.7)+
   labs(title='Total Burnout by Partership')+
   scale_fill_discrete(labels=c('alone', 'partner'))
@@ -293,11 +298,17 @@ ggplot(df, aes(x = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaust
 
 
 ```{r}
-ggplot(df, aes(x = anxiety, fill = as.factor(part))) +
+ggplot(df, aes(x = anxiety, fill = part)) +
   geom_density(alpha=0.7)+
   labs(title='Anxiety by Partership')+
   scale_fill_discrete(labels=c('alone', 'partner'))
 ```
+
+```{r}
+df$sex <- as.numeric(as.character(df$sex))
+df$part <- as.numeric(as.character(df$part))
+```
+
 
 ## Constructing subsets for each burnout score
 
@@ -330,7 +341,7 @@ rf_exhaustion <- randomForest(
 print(rf_exhaustion)
 
 # Plot variable importance
-varImpPlot(rf_exhaustion, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
+varImpPlot(rf_exhaustion, type = 1, main = "Random Forest Variable Importance - Exhaustion (MSE Increase)")
 ```
 
 
@@ -422,7 +433,7 @@ rf_cynicism <- randomForest(
 print(rf_cynicism)
 
 # Plot variable importance
-varImpPlot(rf_cynicism, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
+varImpPlot(rf_cynicism, type = 1, main = "Random Forest Variable Importance - Cynicism (MSE Increase)")
 ```
 
 ```{r}
@@ -516,7 +527,7 @@ rf_efficacy <- randomForest(
 print(rf_efficacy)
 
 # Plot variable importance
-varImpPlot(rf_efficacy, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
+varImpPlot(rf_efficacy, type = 1, main = "Random Forest Variable Importance - Efficacy (MSE Increase)")
 ```
 
 ```{r}
@@ -610,7 +621,7 @@ rf_total_burnout <- randomForest(
 print(rf_total_burnout)
 
 # Plot variable importance
-varImpPlot(rf_total_burnout, type = 1, main = "Random Forest Variable Importance (MSE Increase)")
+varImpPlot(rf_total_burnout, type = 1, main = "Random Forest Variable Importance - Total Burnout (MSE Increase)")
 ```
 
 ```{r}
