@@ -1,0 +1,862 @@
+---
+title: "mini_project2_code"
+author: "Luna Bellitto, Isabella Mullen, Nina Rice, Asad Tariq"
+date: "2025-05-23"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Loading Libraries
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(glmnet)
+library(randomForest)
+library(ggplot2)
+library(corrplot)
+library(RColorBrewer)
+library(gridExtra)
+library(huxtable)
+library(caret)
+library(VIM)
+```
+
+
+## Reading the Dataset
+
+```{r}
+df <- read_csv("../data/mini_project2_data/Data_Carrardetal2022MedTeach.csv", show_col_types = FALSE)
+str(df)
+```
+
+
+## Check for missing data
+
+```{r}
+# Count of missing values per column
+colSums(is.na(df))
+
+# Visualization of missing data 
+dt_miss <- df
+
+a <- aggr(dt_miss, plot = FALSE)
+plot(a, numbers = TRUE, prop = FALSE, cex.axis = 0.6, cex.lab = 0.6)
+```
+
+## Renaming the columns for readability
+
+```{r}
+df <- df %>% 
+  dplyr::rename(
+    job_satisfaction = jspe,
+    cog_empathy = qcae_cog,
+    aff_empathy = qcae_aff,
+    academic_motivation = amsp,
+    empathy_mean = erec_mean,
+    depression = cesd,
+    anxiety = stai_t,
+    burnout_exhaustion = mbi_ex,
+    burnout_cynicism = mbi_cy,
+    burnout_efficacy = mbi_ea
+  )
+```
+
+## Correlation Plot
+
+```{r, fig.height=6, fig.width=8}
+c<-cor(df)
+corrplot(c, method = "number",type = "upper",number.cex = 0.6,
+         tl.cex = 0.7,mar = c(1,1,1,1), col = brewer.pal(n = 8, name = "RdBu"))
+```
+
+We see that `depression`, `anxiety`, `burnout_exhaustion`, `burnout_cynicism`, and `burnout_efficacy` are highly correlated.
+
+```{r, fig.height=6, fig.width=8}
+c<-cor(df[, 16:20])
+corrplot(c, method = "number",type = "upper",number.cex = 0.6,
+         tl.cex = 0.7,mar = c(1,1,1,1), col = brewer.pal(n = 8, name = "RdBu"))
+```
+
+## Remove unwanted columns from the dataset
+
+```{r}
+# Removing the id column
+df <- subset(df, select = -id) 
+df
+```
+
+## Reverse-coding and Standardizing
+
+```{r}
+# Reverse-code professional efficacy
+max_burnout_efficacy <- max(df$burnout_efficacy, na.rm = TRUE)
+df$burnout_efficacy_rev <- max_burnout_efficacy - df$burnout_efficacy
+
+# Create a combined burnout score
+
+# Z-score standardization
+df$burnout_exhaustion_z <- scale(df$burnout_exhaustion)
+df$burnout_cynicism_z <- scale(df$burnout_cynicism)
+df$burnout_efficacy_rev_z <- scale(df$burnout_efficacy_rev)
+
+df
+```
+
+## Additional Data Exploration
+
+```{r, fig.width=8, fig.height=6}
+# # Convert sex into a factor to do divide the colors
+
+df$sex <- as.factor(df$sex)
+
+eff.anx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Efficacy")
+
+
+eff.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Efficacy")
+
+
+grid.arrange(eff.anx, eff.dep, ncol=2, top = "Impact of Anxiety and Depression on Efficacy by Sex")
+```
+
+```{r, fig.width=8, fig.height=6}
+cyn.qnx <- ggplot(df, aes(x = anxiety, y = burnout_cynicism_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Cynicism")
+
+cyn.dep <- ggplot(df, aes(x = depression, y = burnout_cynicism_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Cynicism")
+
+
+grid.arrange(cyn.qnx, cyn.dep, ncol=2, top = "Impact of Anxiety and Depression on Cynicism by Sex")
+```
+
+```{r, fig.width=8, fig.height=6}
+exh.qnx <- ggplot(df, aes(x = anxiety, y = burnout_exhaustion_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Exhaustion")
+
+exh.dep <- ggplot(df, aes(x = depression, y = burnout_exhaustion_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Exhaustion")
+
+grid.arrange(exh.qnx, exh.dep, ncol=2, top = "Impact of Anxiety and Depression on Exhaustion by Sex")
+```
+
+```{r, fig.width=8, fig.height=6}
+total_burnout.qnx <- ggplot(df, aes(x = anxiety, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Anxiety") +
+  ylab("Total Burnout")
+
+total_burnout.dep <- ggplot(df, aes(x = depression, y = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, color = sex)) + geom_point() + 
+  scale_color_manual(values = c("2" = "pink", "1" = "blue")) + 
+  geom_smooth(method = lm, 
+              se = FALSE) + 
+  xlab("Depression") +
+  ylab("Total Burnout")
+
+
+grid.arrange(total_burnout.qnx, total_burnout.dep, ncol=2, top = "Impact of Anxiety and Depression on Total Burnout by Sex")
+```
+
+### Impact of year on burnout
+
+```{r, fig.width=6, fig.height=5}
+summary_df_efficacy <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_efficacy_rev_z),
+    se      = sd(burnout_efficacy_rev_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_efficacy, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Efficacy",
+    title = "Mean Burnout Efficacy by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+```{r, fig.width=6, fig.height=5}
+summary_df_cynicism <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_cynicism_z),
+    se      = sd(burnout_cynicism_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_cynicism, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Cynicism",
+    title = "Mean Burnout Cynicism by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+```{r, fig.width=6, fig.height=5}
+summary_df_exhaustion <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_exhaustion_z),
+    se      = sd(burnout_exhaustion_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_exhaustion, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Exhaustion",
+    title = "Mean Burnout Exhaustion by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+```{r, fig.width=6, fig.height=5}
+summary_df_total_burnout <- df %>%
+  group_by(year) %>%
+  summarise(
+    mean    = mean(burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z),
+    se      = sd(burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z) / sqrt(n()),
+    lower   = mean - qt(0.975, df = n() - 1) * se,
+    upper   = mean + qt(0.975, df = n() - 1) * se
+  )
+
+ggplot(summary_df_total_burnout, aes(x = year, y = mean)) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    x = "Years of Study",
+    y = "Mean Total Burnout",
+    title = "Mean Total Burnout by Year with 95% CI"
+  ) +
+  theme_minimal()
+```
+
+## Partnership Influence over Mental Health
+
+```{r, fig.width=6}
+df$part<-as.factor(df$part)
+
+ggplot(df, aes(x = health, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='Health by Partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+
+```{r}
+ggplot(df, aes(x = burnout_efficacy_rev_z + burnout_cynicism_z + burnout_exhaustion_z, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='Total Burnout by Partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+
+```{r}
+ggplot(df, aes(x = anxiety, fill = part)) +
+  geom_density(alpha=0.7)+
+  labs(title='Anxiety by Partership')+
+  scale_fill_discrete(labels=c('alone', 'partner'))
+```
+
+```{r}
+df$sex <- as.numeric(as.character(df$sex))
+df$part <- as.numeric(as.character(df$part))
+```
+
+
+## Constructing subsets for each burnout score
+
+```{r}
+df_features <- subset(df, select = c(age, year, sex, glang, part, job,
+                                       stud_h, health, psyt, job_satisfaction,
+                                       cog_empathy, aff_empathy,
+                                       academic_motivation,empathy_mean,
+                                       depression, anxiety))
+
+df_exhaustion <- cbind(df_features, burnout_exhaustion_z = df$burnout_exhaustion_z)
+df_cynicism <- cbind(df_features, burnout_cynicism_z = df$burnout_cynicism_z)
+df_efficacy <- cbind(df_features, burnout_efficacy_rev_z = df$burnout_efficacy_rev_z)
+df_all_burnout <- cbind(df_features, burnout_total = df$burnout_exhaustion_z + df$burnout_cynicism_z + df$burnout_efficacy_rev_z)
+```
+
+## Fitting Random Forest for each target variable
+
+```{r, fig.width=8, fig.height=5}
+# Fit Random Forest regression model
+set.seed(123)
+rf_exhaustion <- randomForest(
+  burnout_exhaustion_z ~ ., 
+  data = df_exhaustion,
+  importance = TRUE,
+  ntree = 500
+)
+
+# Print model summary
+print(rf_exhaustion)
+
+# Plot variable importance
+varImpPlot(rf_exhaustion, type = 1, main = "Random Forest Variable Importance - Exhaustion (MSE Increase)")
+```
+
+
+```{r}
+# Extract and rank variable importance
+ex_importance_df <- importance(rf_exhaustion, type = 1)  # %IncMSE
+ex_importance_df <- data.frame(Variable = rownames(ex_importance_df), IncMSE = ex_importance_df[, 1])
+ex_importance_df <- ex_importance_df[order(-ex_importance_df$IncMSE), ]
+```
+
+```{r, fig.width=8, fig.height=6}
+# Set up 5-fold cross-validation (faster than repeatedcv)
+cv_ctrl <- trainControl(method = "cv", number = 5)
+
+# Prepare variable importance ordering
+all_vars <- ex_importance_df$Variable
+ex_cv_results <- data.frame(Num_Variables = 1:length(all_vars), MSPE = NA)
+
+# Loop over 1 to total number of features
+for (k in 1:length(all_vars)) {
+  selected_vars <- all_vars[1:k]
+  formula_k <- as.formula(paste("burnout_exhaustion_z ~", paste(selected_vars, collapse = " + ")))
+
+  # Limit mtry values to avoid warnings and ensure valid tuning
+  mtry_max <- max(1, min(5, k))  # Try mtry = 1 up to 5 or k, whichever is smaller
+  tune_grid <- expand.grid(mtry = 1:mtry_max)
+
+  # Train model with cross-validation and tuned mtry
+  set.seed(123)
+  rf_cv_model <- train(
+    formula_k,
+    data = df_exhaustion,
+    method = "rf",
+    trControl = cv_ctrl,
+    tuneGrid = tune_grid,
+    ntree = 100
+  )
+
+  # Store best cross-validated MSPE (RMSE^2)
+  ex_cv_results$MSPE[k] <- min(rf_cv_model$results$RMSE)^2
+}
+
+# Find optimal number of features
+ex_opt_k <- which.min(ex_cv_results$MSPE)
+ex_opt_mspe <- ex_cv_results$MSPE[ex_opt_k]
+
+cat("Optimal K:", ex_opt_k, "\n")
+cat("Optimal MSPE:", round(ex_opt_mspe, 4), "\n")
+
+ggplot(ex_cv_results, aes(x = Num_Variables, y = MSPE)) +
+  geom_line(color = "steelblue", linewidth = 1.2) +
+  geom_point(color = "red", size = 2) +
+  geom_vline(xintercept = ex_opt_k, linetype = "dashed", color = "darkgreen") +
+  geom_text(data = data.frame(x = ex_opt_k, y = ex_opt_mspe + 0.01),
+            aes(x = x, y = y, label = paste0("Optimal = ", ex_opt_k)),
+            inherit.aes = FALSE,
+            color = "darkgreen", fontface = "bold", vjust = 0) +
+  labs(
+    title = "MSPE vs. Number of Top Variables (Burnout-Exhaustion Random Forest, 5-fold CV)",
+    x = "Number of Top Variables",
+    y = "Mean Squared Prediction Error (CV)"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r, fig.width=8, fig.height=5}
+# Fit Random Forest regression model
+set.seed(123)
+rf_cynicism <- randomForest(
+  burnout_cynicism_z ~ ., 
+  data = df_cynicism,
+  importance = TRUE,
+  ntree = 500
+)
+
+# Print model summary
+print(rf_cynicism)
+
+# Plot variable importance
+varImpPlot(rf_cynicism, type = 1, main = "Random Forest Variable Importance - Cynicism (MSE Increase)")
+```
+
+```{r}
+# Extract and rank variable importance
+cy_importance_df <- importance(rf_cynicism, type = 1)  # %IncMSE
+cy_importance_df <- data.frame(Variable = rownames(cy_importance_df), IncMSE = cy_importance_df[, 1])
+cy_importance_df <- cy_importance_df[order(-cy_importance_df$IncMSE), ]
+
+# Show top predictors
+cy_importance_df  # Top 10 for review
+```
+
+```{r, fig.width=8, fig.height=6}
+library(caret)
+library(randomForest)
+library(ggplot2)
+
+# Set up 5-fold cross-validation
+cv_ctrl <- trainControl(method = "cv", number = 5)
+
+# Prepare importance-ordered variable list
+all_vars <- cy_importance_df$Variable
+cy_cv_results <- data.frame(Num_Variables = 1:length(all_vars), MSPE = NA)
+
+# Loop through 1 to number of predictors
+for (k in 1:length(all_vars)) {
+  selected_vars <- all_vars[1:k]
+  formula_k <- as.formula(paste("burnout_cynicism_z ~", paste(selected_vars, collapse = " + ")))
+
+  # Safe mtry grid (max 5 or k, whichever is smaller)
+  mtry_max <- max(1, min(5, k))
+  tune_grid <- expand.grid(mtry = 1:mtry_max)
+
+  # Train with CV
+  set.seed(123)
+  rf_cv_model <- train(
+    formula_k,
+    data = df_cynicism,
+    method = "rf",
+    trControl = cv_ctrl,
+    tuneGrid = tune_grid,
+    ntree = 100
+  )
+
+  # Save best MSPE
+  cy_cv_results$MSPE[k] <- min(rf_cv_model$results$RMSE)^2
+}
+
+# Find optimal K and MSPE
+cy_opt_k <- which.min(cy_cv_results$MSPE)
+cy_opt_mspe <- cy_cv_results$MSPE[cy_opt_k]
+
+cat("Optimal K:", cy_opt_k, "\n")
+cat("Optimal MSPE:", round(cy_opt_mspe, 4), "\n")
+
+ggplot(cy_cv_results, aes(x = Num_Variables, y = MSPE)) +
+  geom_line(color = "steelblue", size = 1.2) +
+  geom_point(color = "red", size = 2) +
+  geom_vline(xintercept = cy_opt_k, linetype = "dashed", color = "darkgreen") +
+  geom_text(data = data.frame(x = cy_opt_k, y = cy_opt_mspe + 0.01),
+            aes(x = x, y = y, label = paste0("Optimal = ", cy_opt_k)),
+            inherit.aes = FALSE,
+            color = "darkgreen", fontface = "bold", vjust = -3.5) +
+  labs(
+    title = "MSPE vs. Number of Top Variables (Burnout-Cynicism Random Forest, 5-fold CV)",
+    x = "Number of Top Variables",
+    y = "Mean Squared Prediction Error (CV)"
+  ) +
+  theme_minimal()
+```
+
+
+```{r, fig.width=8, fig.height=5}
+# Fit Random Forest regression model
+set.seed(123)
+rf_efficacy <- randomForest(
+  burnout_efficacy_rev_z ~ ., 
+  data = df_efficacy,
+  importance = TRUE,
+  ntree = 500
+)
+
+# Print model summary
+print(rf_efficacy)
+
+# Plot variable importance
+varImpPlot(rf_efficacy, type = 1, main = "Random Forest Variable Importance - Efficacy (MSE Increase)")
+```
+
+```{r}
+# Extract and rank variable importance
+ea_importance_df <- importance(rf_efficacy, type = 1)  # %IncMSE
+ea_importance_df <- data.frame(Variable = rownames(ea_importance_df), IncMSE = ea_importance_df[, 1])
+ea_importance_df <- ea_importance_df[order(-ea_importance_df$IncMSE), ]
+
+# Show top predictors
+ea_importance_df  # Top 10 for review
+```
+
+
+```{r, fig.width=8, fig.height=6}
+# Set up 5-fold cross-validation
+cv_ctrl <- trainControl(method = "cv", number = 5)
+
+# Get top variables ranked by importance
+all_vars <- ea_importance_df$Variable
+ea_cv_results <- data.frame(Num_Variables = 1:length(all_vars), MSPE = NA)
+
+# Loop through 1 to number of top variables
+for (k in 1:length(all_vars)) {
+  selected_vars <- all_vars[1:k]
+  formula_k <- as.formula(paste("burnout_efficacy_rev_z ~", paste(selected_vars, collapse = " + ")))
+
+  # Safe tuning grid
+  mtry_max <- max(1, min(5, k))
+  tune_grid <- expand.grid(mtry = 1:mtry_max)
+
+  # Train the model with CV and tuned mtry
+  set.seed(123)
+  rf_cv_model <- train(
+    formula_k,
+    data = df_efficacy,
+    method = "rf",
+    trControl = cv_ctrl,
+    tuneGrid = tune_grid,
+    ntree = 100
+  )
+
+  # Store the best MSPE (RMSE squared)
+  ea_cv_results$MSPE[k] <- min(rf_cv_model$results$RMSE)^2
+}
+
+# Find optimal number of features
+ea_opt_k <- which.min(ea_cv_results$MSPE)
+ea_opt_mspe <- ea_cv_results$MSPE[ea_opt_k]
+
+cat("Optimal K:", ea_opt_k, "\n")
+cat("Optimal MSPE:", round(ea_opt_mspe, 4), "\n")
+
+ggplot(ea_cv_results, aes(x = Num_Variables, y = MSPE)) +
+  geom_line(color = "steelblue", size = 1.2) +
+  geom_point(color = "red", size = 2) +
+  geom_vline(xintercept = ea_opt_k, linetype = "dashed", color = "darkgreen") +
+  geom_text(data = data.frame(x = ea_opt_k, y = ea_opt_mspe + 0.01),
+            aes(x = x, y = y, label = paste0("Optimal = ", ea_opt_k)),
+            inherit.aes = FALSE,
+            color = "darkgreen", fontface = "bold", vjust = -1.5) +
+  labs(
+    title = "MSPE vs. Number of Top Variables (Burnout-Efficacy Random Forest, 5-fold CV)",
+    x = "Number of Top Variables",
+    y = "Mean Squared Prediction Error (CV)"
+  ) +
+  theme_minimal()
+
+```
+
+```{r, fig.width=8, fig.height=5}
+# Fit Random Forest regression model
+set.seed(123)
+rf_total_burnout <- randomForest(
+  burnout_total ~ ., 
+  data = df_all_burnout,
+  importance = TRUE,
+  ntree = 500
+)
+
+# Print model summary
+print(rf_total_burnout)
+
+# Plot variable importance
+varImpPlot(rf_total_burnout, type = 1, main = "Random Forest Variable Importance - Total Burnout (MSE Increase)")
+```
+
+```{r}
+# Extract and rank variable importance
+total_importance_df <- importance(rf_total_burnout, type = 1)  # %IncMSE
+total_importance_df <- data.frame(Variable = rownames(total_importance_df), IncMSE = total_importance_df[, 1])
+total_importance_df <- total_importance_df[order(-total_importance_df$IncMSE), ]
+
+# Show top predictors
+total_importance_df  # Top 10 for review
+```
+
+```{r, fig.width=8, fig.height=6}
+# 5-fold cross-validation setup
+cv_ctrl <- trainControl(method = "cv", number = 5)
+
+# Ranked variables by importance
+all_vars <- total_importance_df$Variable
+total_cv_results <- data.frame(Num_Variables = 1:length(all_vars), MSPE = NA)
+
+# Loop over 1 to number of variables
+for (k in 1:length(all_vars)) {
+  selected_vars <- all_vars[1:k]
+  formula_k <- as.formula(paste("burnout_total ~", paste(selected_vars, collapse = " + ")))
+
+  # Valid mtry tuning grid
+  mtry_max <- max(1, min(5, k))
+  tune_grid <- expand.grid(mtry = 1:mtry_max)
+
+  # Train with CV and tuned mtry
+  set.seed(123)
+  rf_cv_model <- train(
+    formula_k,
+    data = df_all_burnout,
+    method = "rf",
+    trControl = cv_ctrl,
+    tuneGrid = tune_grid,
+    ntree = 100
+  )
+
+  # Save best MSPE (squared RMSE)
+  total_cv_results$MSPE[k] <- min(rf_cv_model$results$RMSE)^2
+}
+
+# Identify optimal number of variables
+total_opt_k <- which.min(total_cv_results$MSPE)
+total_opt_mspe <- total_cv_results$MSPE[total_opt_k]
+
+cat("Optimal K:", total_opt_k, "\n")
+cat("Optimal MSPE:", round(total_opt_mspe, 4), "\n")
+
+ggplot(total_cv_results, aes(x = Num_Variables, y = MSPE)) +
+  geom_line(color = "steelblue", size = 1.2) +
+  geom_point(color = "red", size = 2) +
+  geom_vline(xintercept = total_opt_k, linetype = "dashed", color = "darkgreen") +
+  geom_text(data = data.frame(x = total_opt_k, y = total_opt_mspe + 0.05),
+            aes(x = x, y = y, label = paste0("Optimal = ", total_opt_k)),
+            inherit.aes = FALSE,
+            color = "darkgreen", fontface = "bold", vjust = 0) +
+  labs(
+    title = "MSPE vs. Number of Top Variables (Total Burnout Random Forest, 5-fold CV)",
+    x = "Number of Top Variables",
+    y = "Mean Squared Prediction Error (CV)"
+  ) +
+  theme_minimal()
+
+```
+
+```{r, fig.width=8, fig.height=6}
+ex_cv_results$model <- "Exhaustion"
+cy_cv_results$model <- "Cynicism"
+ea_cv_results$model <- "Efficacy"
+total_cv_results$model <- "Total-Burnout"
+
+combined_cv_df <- bind_rows(
+  ex_cv_results,
+  cy_cv_results,
+  ea_cv_results,
+  total_cv_results
+)
+
+optima_df <- data.frame(
+  model = c("Exhaustion", "Cynicism", "Efficacy", "Total-Burnout"),
+  x = c(ex_opt_k, cy_opt_k, ea_opt_k, total_opt_k),
+  y = c(ex_cv_results$MSPE[ex_opt_k],
+        cy_cv_results$MSPE[cy_opt_k],
+        ea_cv_results$MSPE[ea_opt_k],
+        total_cv_results$MSPE[total_opt_k])
+)
+
+combined_cv_df
+
+```
+```{r}
+optima_df
+```
+
+```{r}
+ggplot(combined_cv_df, aes(x = Num_Variables, y = MSPE, color = model)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+
+  # Add optimal vertical lines per model
+  geom_vline(data = optima_df, aes(xintercept = x, color = model), linetype = "dashed", show.legend = FALSE) +
+
+  # Annotate optimal k values
+  geom_text(
+    data = optima_df,
+    aes(x = x, y = y + 0.2, label = paste0("Optimal = ", x)),
+    color = 'black',
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 3.5,
+    vjust = -2.5
+  ) +
+
+  labs(
+    title = "MSPE vs. Number of Top Variables\n(All Burnout Random Forest Models, 5-fold CV)",
+    x = "Number of Top Variables",
+    y = "Mean Squared Prediction Error (CV)",
+    color = "Model"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    plot.title = element_text(size = 18, face = "bold"),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12)
+  )
+```
+
+
+```{r}
+ex_importance_df$model = "RF-Exhaustion"
+cy_importance_df$model = "RF-Cynicism"
+ea_importance_df$model = "RF-Efficacy"
+total_importance_df$model = "RF-Total-Burnout"
+
+combined_importance_df <- bind_rows(ex_importance_df, cy_importance_df, ea_importance_df, total_importance_df)
+```
+
+```{r}
+print(top_n(ex_importance_df, 5, IncMSE)["Variable"])
+print(top_n(cy_importance_df, 5, IncMSE)["Variable"])
+print(top_n(ea_importance_df, 5, IncMSE)["Variable"])
+print(top_n(total_importance_df, 5, IncMSE)["Variable"])
+```
+
+
+```{r}
+top_vars <- combined_importance_df %>%
+  group_by(model) %>%
+  top_n(5, IncMSE) %>%
+  ungroup() %>%
+  distinct(Variable)
+
+filtered_df <- combined_importance_df %>%
+  filter(Variable %in% top_vars$Variable)
+
+completed_df <- filtered_df %>%
+  complete(model, Variable, fill = list(IncMSE = 0))
+
+ggplot(completed_df, aes(x = reorder(Variable, IncMSE), y = IncMSE, fill = model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Top 5 Variable Importance per Model",
+    x = "Variable",
+    y = "Importance (% Increase in MSE)"
+  ) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1") +
+  theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+      axis.text.y = element_text(size = 12),
+      axis.title.x = element_text(size = 14),
+      axis.title.y = element_text(size = 14),
+      plot.title = element_text(size = 18, face = "bold"),
+      plot.subtitle = element_text(size = 14),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 12)
+    )
+
+```
+
+
+## Feature Importance Plot for Random Forests
+
+```{r, fig.width=8, fig.height=10}
+ggplot(combined_importance_df, aes(x = reorder(Variable, IncMSE), y = IncMSE, fill = model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  labs(title = "Variable Importance by Model",
+       x = "Variable",
+       y = "Importance (% Increase in MSE)") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+```
+
+## Plotting MSPE
+
+```{r}
+mspe_summary_df <- data.frame(
+  Model = rep(c("Exhaustion", "Cynicism", "Efficacy", "Total Burnout"), each = 2),
+  Version = rep(c("Full", "Optimal"), times = 4),
+  MSPE = c(
+    ex_cv_results$MSPE[length(ex_cv_results$MSPE)], ex_cv_results$MSPE[ex_opt_k],
+    cy_cv_results$MSPE[length(cy_cv_results$MSPE)], cy_cv_results$MSPE[cy_opt_k],
+    ea_cv_results$MSPE[length(ea_cv_results$MSPE)], ea_cv_results$MSPE[ea_opt_k],
+    total_cv_results$MSPE[length(total_cv_results$MSPE)], total_cv_results$MSPE[total_opt_k]
+  ),
+  Optimal_K = c(NA, ex_opt_k, NA, cy_opt_k, NA, ea_opt_k, NA, total_opt_k)
+)
+
+mspe_summary_df$Label <- paste0(mspe_summary_df$Model, "(", mspe_summary_df$Version, ")")
+mspe_summary_df
+```
+
+
+```{r, fig.width=8, fig.height=8}
+
+ggplot(mspe_summary_df, aes(x = Label, y = MSPE, color = Model)) +
+  geom_point(size = 4) +
+
+  # Annotate MSPE above each point
+  geom_text(aes(label = round(MSPE, 2)), 
+            vjust = -1, size = 4.5, color = "black") +
+
+  # Annotate K for Optimal models below
+  geom_text(
+    data = subset(mspe_summary_df, Version == "Optimal"),
+    aes(label = paste0("K = ", Optimal_K)),
+    vjust = 2, size = 4.5, color = "black", fontface = "italic"
+  ) +
+
+  # Annotate K = 16 for Full models below
+  geom_text(
+    data = subset(mspe_summary_df, Version == "Full"),
+    aes(label = "K = 16"),
+    vjust = 2, size = 4.5, color = "black", fontface = "italic"
+  ) +
+
+  labs(
+    title = "MSPE for Full vs Optimal Random Forest Models",
+    subtitle = "Each model appears twice (Full and Optimal).",
+    x = "Model Version",
+    y = "Mean Squared Prediction Error"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12)
+  )
+
+```
+
